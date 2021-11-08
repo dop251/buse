@@ -15,6 +15,7 @@ import (
 
 type Device struct {
 	size       int64
+	blockSize  int
 	device     string
 	driver     nbd.Driver
 	deviceFp   *os.File
@@ -27,7 +28,11 @@ type Device struct {
 func (bd *Device) startNBDClient() {
 	bd.client = nbd.NewClient(bd.device, bd.sock, bd.size)
 
-	bd.client.SetBlockSize(4096)
+	if bd.blockSize > 0 {
+		bd.client.SetBlockSize(bd.blockSize)
+	} else {
+		bd.client.SetBlockSize(512)
+	}
 
 	if _, ok := bd.driver.(nbd.Syncer); ok {
 		bd.client.SetSendFlush(true)
@@ -59,6 +64,10 @@ func (bd *Device) SetPool(pool nbd.ProcPool) {
 
 func (bd *Device) SetLogger(log *logrus.Logger) {
 	bd.srvConn.SetLogger(log)
+}
+
+func (bd *Device) SetBlockSize(size int) {
+	bd.blockSize = size
 }
 
 // Run connects a Device to an actual device file
