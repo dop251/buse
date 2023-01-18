@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 package buse
@@ -23,10 +24,15 @@ type Device struct {
 	client     *nbd.Client
 	srvConn    *nbd.ServerConn
 	disconnect chan struct{}
+	log        *logrus.Logger
+	readOnly   bool
 }
 
 func (bd *Device) startNBDClient() {
 	bd.client = nbd.NewClient(bd.device, bd.sock, bd.size)
+	if bd.log != nil {
+		bd.client.SetLogger(bd.log)
+	}
 
 	if bd.blockSize > 0 {
 		bd.client.SetBlockSize(bd.blockSize)
@@ -41,7 +47,12 @@ func (bd *Device) startNBDClient() {
 		bd.client.SetSendTrim(true)
 	}
 
-	bd.client.Run()
+	bd.client.SetReadOnly(bd.readOnly)
+
+	err := bd.client.Run()
+	if err != nil && bd.log != nil {
+		bd.log.Errorf("Client has failed: %v", err)
+	}
 
 	bd.srvConn.Close()
 	bd.disconnect <- struct{}{}
@@ -63,11 +74,16 @@ func (bd *Device) SetPool(pool nbd.ProcPool) {
 }
 
 func (bd *Device) SetLogger(log *logrus.Logger) {
+	bd.log = log
 	bd.srvConn.SetLogger(log)
 }
 
 func (bd *Device) SetBlockSize(size int) {
 	bd.blockSize = size
+}
+
+func (bd *Device) SetReadOnly(flag bool) {
+	bd.readOnly = flag
 }
 
 // Run connects a Device to an actual device file
